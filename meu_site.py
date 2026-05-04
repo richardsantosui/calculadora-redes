@@ -2,7 +2,7 @@ import streamlit as st
 import ipaddress
 import math
 
-# Configuração da Página
+# Configuração da Página para aproveitar melhor o espaço
 st.set_page_config(page_title="Analista de Redes Pro", page_icon="🔍", layout="wide")
 
 # --- FUNÇÕES DE APOIO ---
@@ -16,12 +16,12 @@ def get_ip_class(ip):
     else: return "Classe E (Experimental)"
 
 def format_bin(ip_ou_mask):
-    """Transforma IP ou Máscara em binário com pontos separadores."""
+    """Transforma IP ou Máscara em binário com pontos separadores (8 bits por bloco)."""
     return ".".join([bin(int(x))[2:].zfill(8) for x in str(ip_ou_mask).split('.')])
 
 # --- INTERFACE ---
 st.title("🔍 Analista de Redes & Sub-redes")
-st.write("Análise técnica detalhada com Raio-X binário.")
+st.write("Análise técnica com máscara resolvida e Raio-X binário.")
 
 # Entrada de dados
 col_input1, col_input2 = st.columns([2, 1])
@@ -35,17 +35,18 @@ try:
     rede_principal = ipaddress.ip_network(ip_input, strict=False)
     ip_puro = rede_principal.network_address
     
-    # --- DIAGNÓSTICO PRINCIPAL ---
+    # --- DIAGNÓSTICO DA REDE PRINCIPAL ---
     st.subheader("📊 Diagnóstico da Rede Principal")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("Rede", str(rede_principal.network_address))
     with c2:
-        st.metric("Máscara Decimal", str(rede_principal.netmask))
+        # Aqui a máscara já aparece resolvida em formato decimal
+        st.metric("Máscara Resolvida", str(rede_principal.netmask))
     with c3:
         st.metric("Classe Identificada", get_ip_class(ip_puro))
     with c4:
-        st.metric("Prefixo Atual", f"/{rede_principal.prefixlen}")
+        st.metric("Prefixo CIDR", f"/{rede_principal.prefixlen}")
 
     st.divider()
 
@@ -54,12 +55,12 @@ try:
     novo_prefixo = rede_principal.prefixlen + bits_extras
 
     if novo_prefixo > 32:
-        st.error("❌ Erro: O número de sub-redes solicitado estoura o limite de 32 bits do IPv4.")
+        st.error("❌ Erro: O número de sub-redes solicitado ultrapassa o limite de 32 bits do IPv4.")
     else:
         subnets = list(rede_principal.subnets(new_prefix=novo_prefixo))
-        st.subheader(f"📂 Detalhamento das {len(subnets)} Sub-redes (Prefixação /{novo_prefixo})")
+        st.subheader(f"📂 Detalhamento das {len(subnets)} Sub-redes (/{novo_prefixo})")
         
-        # Paginação para performance
+        # Paginação para evitar que o site fique lento
         limit = 10
         total_paginas = math.ceil(len(subnets) / limit)
         page = st.number_input("Página da lista:", min_value=1, max_value=total_paginas, value=1)
@@ -68,29 +69,29 @@ try:
         end = start + limit
 
         for i, sn in enumerate(subnets[start:end]):
-            # Expansor para cada sub-rede
             with st.expander(f"🌐 Sub-rede {start + i + 1}: {sn.network_address}/{novo_prefixo}"):
                 col_a, col_b = st.columns(2)
                 
                 with col_a:
                     st.write("**📍 Endereçamento**")
-                    st.write(f"- **Rede:** `{sn.network_address}`")
+                    st.write(f"- **IP de Rede:** `{sn.network_address}`")
                     st.write(f"- **Primeiro Host:** `{sn.network_address + 1}`")
                     st.write(f"- **Último Host:** `{sn.broadcast_address - 1}`")
                     st.write(f"- **Broadcast:** `{sn.broadcast_address}`")
-                    st.info(f"Total de IPs utilizáveis: {sn.num_addresses - 2}")
+                    # Exibe a máscara resolvida de forma destacada
+                    st.success(f"**Máscara Resolvida: {sn.netmask}**")
                 
                 with col_b:
-                    st.write("**💻 Raio-X Binário (Alinhado)**")
+                    st.write("**💻 Raio-X Binário Alinhado**")
                     st.text("Binário do IP:")
                     st.code(format_bin(sn.network_address))
                     
                     st.text("Binário da Máscara:")
                     st.code(format_bin(sn.netmask))
                     
-                    st.caption("Dica: Onde a máscara tem '1', é a parte da REDE. Onde tem '0', é o HOST.")
+                    st.caption(f"Prefixo: /{sn.prefixlen} | Total de IPs: {sn.num_addresses - 2}")
 
-        st.caption(f"Exibindo sub-redes {start+1} a {min(end, len(subnets))} de um total de {len(subnets)}.")
+        st.caption(f"Mostrando sub-redes {start+1} a {min(end, len(subnets))} de {len(subnets)}.")
 
 except Exception as e:
-    st.warning(f"Aguardando entrada válida. Certifique-se de usar o formato IP/MÁSCARA. (Erro: {e})")
+    st.warning(f"Aguardando entrada válida (IP/Máscara). Exemplo: 172.16.0.0/12")
