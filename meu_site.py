@@ -81,7 +81,7 @@ try:
                     st.write(f"- **Broadcast:** `{sn.broadcast_address}`")
                     st.success(f"**Máscara Resolvida: {sn.netmask}**")
                     # NOVA INFORMAÇÃO SOLICITADA:
-                    st.info(f"🔢 **Sub-redes deste tamanho possíveis na rede pai: {total_criado}**")
+                    st.info(f"🔢 **Sub-redes deste tamanho possíveis na rede: {total_criado}**")
                 
                 with col_b:
                     st.write("**💻 Raio-X Binário Alinhado**")
