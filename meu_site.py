@@ -1,73 +1,71 @@
 import streamlit as st
 import ipaddress
 
-# Configuração de Interface
 st.set_page_config(page_title="Calculadora de Redes", page_icon="🌐", layout="wide")
 
-def identificar_classe_detalhada(ip):
-    primeiro_octeto = int(str(ip).split('.')[0])
+def calcular_capacidade_real(ip_str):
+    """Calcula a capacidade total baseada na classe real do IP (A, B ou C)."""
+    primeiro_octeto = int(ip_str.split('.')[0])
     if 1 <= primeiro_octeto <= 126:
-        return "Classe A", "Redes de grande porte (Escala Global)."
+        return 16777216, "Classe A"
     elif 128 <= primeiro_octeto <= 191:
-        return "Classe B", "Redes de médio porte (Corporativas)."
+        return 65536, "Classe B"
     elif 192 <= primeiro_octeto <= 223:
-        return "Classe C", "Redes de pequeno porte (Domésticas/Locais)."
-    return "Classe Especial", "Uso reservado ou multicast."
+        return 256, "Classe C"
+    return 0, "Especial"
 
-# --- NOVO NOME APLICADO ---
 st.title("🌐 Calculadora de Redes")
-st.markdown(f"**Desenvolvedor:** Richard Santos | **Foco:** Precisão e Alta Performance")
+st.markdown(f"**Desenvolvedor:** Richard Santos | **Foco:** Precisão de Bloco")
 st.divider()
 
 col1, col2 = st.columns(2)
 with col1:
-    entrada_ip = st.text_input("Bloco CIDR de Origem (Ex: 10.0.0.0/8):", "9.6.0.0/16")
+    # Removemos o /16 fixo para deixar o usuário definir a rede de origem
+    entrada_ip = st.text_input("Endereço IP de Origem (Ex: 9.0.0.0):", "9.6.0.0")
 with col2:
-    prefixo_alvo = st.number_input("Novo Prefixo das Sub-redes (CIDR):", min_value=1, max_value=32, value=20)
+    prefixo_alvo = st.number_input("Prefixo das Sub-redes (CIDR):", min_value=8, max_value=32, value=20)
 
 try:
-    rede_pai = ipaddress.ip_network(entrada_ip, strict=False)
-    classe, desc = identificar_classe_detalhada(rede_pai.network_address)
+    # Identifica a capacidade real do IP digitado
+    capacidade_total, classe = calcular_capacidade_real(entrada_ip)
     
-    if prefixo_alvo < rede_pai.prefixlen:
-        st.error(f"Erro: O prefixo alvo /{prefixo_alvo} é menor que o bloco original /{rede_pai.prefixlen}")
-    else:
-        # CÁLCULOS TÉCNICOS
-        total_subredes = 2**(prefixo_alvo - rede_pai.prefixlen)
-        ips_por_subrede = 2**(32 - prefixo_alvo)
-        # O Total do Bloco é baseado na máscara de ORIGEM
-        total_ips_bloco_original = 2**(32 - rede_pai.prefixlen)
+    # Criamos a rede baseada no prefixo alvo para os detalhes
+    ip_puro = entrada_ip.split('/')[0]
+    
+    # --- PAINEL DE MÉTRICAS ---
+    st.subheader(f"📊 Relatório de Capacidade - {classe}")
+    c1, c2, c3 = st.columns(3)
+    
+    # Cálculo de quantas sub-redes desse tamanho cabem na classe inteira
+    ips_por_subrede = 2**(32 - prefixo_alvo)
+    subredes_na_classe = capacidade_total // ips_por_subrede
 
-        # --- EXIBIÇÃO DE MÉTRICAS ---
-        st.subheader("📊 Relatório de Capacidade")
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Classe Identificada", classe)
-        c2.metric("Sub-redes Possíveis", f"{total_subredes:,}".replace(",", "."))
-        c3.metric("Total de IPs no Bloco", f"{total_ips_bloco_original:,}".replace(",", "."))
+    c1.metric("Classe Identificada", classe)
+    c2.metric("Sub-redes Possíveis na Classe", f"{subredes_na_classe:,}".replace(",", "."))
+    c3.metric("Total de IPs da Classe", f"{capacidade_total:,}".replace(",", "."))
 
-        st.info(f"**Análise da {classe}:** {desc}")
-        
-        st.divider()
+    st.divider()
 
-        # --- NAVEGAÇÃO ---
-        st.subheader("🔍 Detalhes por Sub-rede")
-        n_rede = st.number_input(f"Selecione a sub-rede para análise (1 a {total_subredes:,}):", 
-                                 min_value=1, max_value=total_subredes, value=1)
-        
-        # Cálculo de salto para performance
-        salto = ips_por_subrede
-        ip_calculado = ipaddress.IPv4Address(int(rede_pai.network_address) + ((n_rede - 1) * salto))
-        sub_atual = ipaddress.ip_network(f"{ip_calculado}/{prefixo_alvo}")
+    # --- NAVEGAÇÃO ---
+    st.subheader("🔍 Detalhes por Sub-rede")
+    n_rede = st.number_input(f"Selecione a sub-rede (1 a {subredes_na_classe:,}):", 
+                             min_value=1, max_value=subredes_na_classe, value=1)
+    
+    # Cálculo do IP exato da sub-rede selecionada
+    ip_base_int = int(ipaddress.IPv4Address(ip_puro))
+    ip_sub_int = ip_base_int + ((n_rede - 1) * ips_por_subrede)
+    sub_atual = ipaddress.ip_network(f"{ipaddress.IPv4Address(ip_sub_int)}/{prefixo_alvo}", strict=False)
 
-        res1, res2 = st.columns(2)
-        with res1:
-            st.success(f"**Máscara Resolvida: {sub_atual.netmask}**")
-            st.write(f"- **ID de Rede:** `{sub_atual.network_address}`")
-            st.write(f"- **Broadcast:** `{sub_atual.broadcast_address}`")
-        with res2:
-            st.write(f"**Hosts Úteis:** `{ips_por_subrede - 2:,}`".replace(",", "."))
-            st.write(f"- **Faixa:** `{sub_atual.network_address + 1}` até `{sub_atual.broadcast_address - 1}`")
+    res1, res2 = st.columns(2)
+    with res1:
+        st.success(f"**Máscara Resolvida: {sub_atual.netmask}**")
+        st.write(f"- **ID de Rede:** `{sub_atual.network_address}`")
+        st.write(f"- **Primeiro IP Válido:** `{sub_atual.network_address + 1}`")
+        st.write(f"- **Último IP Válido:** `{sub_atual.broadcast_address - 1}`")
+        st.write(f"- **Broadcast:** `{sub_atual.broadcast_address}`")
+    with res2:
+        st.markdown(f"### Estatísticas da Rede #{n_rede}")
+        st.metric("Hosts Úteis nesta Sub-rede", f"{ips_por_subrede - 2:,}".replace(",", "."))
 
-except Exception:
-    st.warning("Aguardando entrada de dados válida.")
+except Exception as e:
+    st.warning("Insira um endereço IP válido.")
