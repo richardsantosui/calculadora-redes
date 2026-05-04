@@ -41,7 +41,7 @@ try:
         st.error(f"❌ **Divisão Impossível:** Para a **{nome_classe}**, o prefixo da sub-rede deve ser no mínimo **/{pref_minimo}**.")
         st.warning(f"O prefixo escolhido (/{prefixo_alvo}) tentaria criar uma rede maior do que a capacidade total da própria Classe.")
     else:
-        # Cálculos de Capacidade Destravados
+        # Cálculos de Capacidade
         ips_por_subrede = 2**(32 - prefixo_alvo)
         total_subredes = cap_total // ips_por_subrede if cap_total > 0 else 0
 
@@ -57,4 +57,31 @@ try:
 
         # --- DETALHES DA SUB-REDE SELECIONADA ---
         st.subheader("🔍 Detalhes do Endereçamento")
-        n_rede = st.number_input(f"Selecione a Sub-rede para
+        
+        # LINHA CORRIGIDA (Abaixo):
+        max_redes = total_subredes if total_subredes > 0 else 1
+        n_rede = st.number_input(f"Selecione a Sub-rede para análise (1 a {max_redes:,}):", min_value=1, max_value=max_redes, value=1)
+
+        # Cálculo matemático direto
+        ip_base_int = int(ipaddress.IPv4Address(ip_input.split('/')[0]))
+        ip_sub_int = ip_base_int + ((n_rede - 1) * ips_por_subrede)
+        rede_atual = ipaddress.ip_network(f"{ipaddress.IPv4Address(ip_sub_int)}/{prefixo_alvo}", strict=False)
+
+        res1, res2 = st.columns(2)
+        with res1:
+            st.success(f"**Máscara Resolvida: {rede_atual.netmask}**")
+            st.write(f"📍 **ID de Rede:** `{rede_atual.network_address}`")
+            st.write(f"✅ **Primeiro IP Válido:** `{rede_atual.network_address + 1}`")
+            st.write(f"✅ **Último IP Válido:** `{rede_atual.broadcast_address - 1}`")
+            st.write(f"📢 **Broadcast:** `{rede_atual.broadcast_address}`")
+        
+        with res2:
+            st.markdown("### 🖥️ Estrutura de Bits & Hosts")
+            st.metric("Hosts Úteis nesta rede", f"{ips_por_subrede - 2:,}".replace(",", "."))
+            st.text("Binário do IP de Rede:")
+            st.code(formatar_binario(rede_atual.network_address))
+            st.text("Binário da Máscara:")
+            st.code(formatar_binario(rede_atual.netmask))
+
+except Exception as e:
+    st.error("⚠️ Erro de processamento. Certifique-se de inserir um endereço IP válido no formato X.X.X.X")
