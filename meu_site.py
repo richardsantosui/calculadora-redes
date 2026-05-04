@@ -2,98 +2,81 @@ import streamlit as st
 import ipaddress
 import math
 
-# Configuração da Página
-st.set_page_config(page_title="Analista de Redes Pro", page_icon="🔍", layout="wide")
+# Configuração de Interface Profissional
+st.set_page_config(page_title="Sistema de Endereçamento IPv4", page_icon="⚙️", layout="wide")
 
-# --- FUNÇÕES DE APOIO ---
-def get_ip_class(ip):
-    """Identifica a classe do IP baseada no primeiro octeto."""
+# --- FUNÇÕES TÉCNICAS ---
+def identificar_classe(ip):
     primeiro_octeto = int(str(ip).split('.')[0])
-    if 1 <= primeiro_octeto <= 126: return "Classe A (Grande Porte)"
-    elif 128 <= primeiro_octeto <= 191: return "Classe B (Médio Porte)"
-    elif 192 <= primeiro_octeto <= 223: return "Classe C (Pequeno Porte)"
-    elif 224 <= primeiro_octeto <= 239: return "Classe D (Multicast)"
-    else: return "Classe E (Experimental)"
+    if 1 <= primeiro_octeto <= 126: return "Classe A"
+    elif 128 <= primeiro_octeto <= 191: return "Classe B"
+    elif 192 <= primeiro_octeto <= 223: return "Classe C"
+    return "Especial/Experimental"
 
-def format_bin(ip_ou_mask):
-    """Transforma IP ou Máscara em binário com pontos separadores."""
-    return ".".join([bin(int(x))[2:].zfill(8) for x in str(ip_ou_mask).split('.')])
+def formatar_binario(valor):
+    return ".".join([bin(int(x))[2:].zfill(8) for x in str(valor).split('.')])
 
-# --- INTERFACE ---
-st.title("🔍 Analista de Redes & Sub-redes")
-st.write("Análise técnica detalhada com Raio-X binário e contagem de sub-redes.")
+# --- CABEÇALHO FORMAL ---
+st.title("🖥️ Sistema de Gestão e Planejamento de Sub-redes")
+st.markdown(f"**Desenvolvido por:** Richard Santos | **Finalidade:** Auditoria e Divisão de Redes IPv4")
+st.divider()
 
-# Entrada de dados
+# Painel de Entrada de Parâmetros
 col_input1, col_input2 = st.columns([2, 1])
 with col_input1:
-    ip_input = st.text_input("IP/Prefixo de Origem (Ex: 5.6.7.0/10):", "5.6.7.0/10")
+    entrada_ip = st.text_input("Endereço de Rede com Prefixo CIDR (Ex: 10.0.0.0/8):", "189.6.0.0/16")
 with col_input2:
-    num_subnets = st.number_input("Dividir em quantas redes?", min_value=1, value=4, step=1)
+    divisoes_solicitadas = st.number_input("Quantidade de Sub-redes desejadas:", min_value=1, value=16, step=1)
 
 try:
-    # Processamento da rede principal
-    rede_principal = ipaddress.ip_network(ip_input, strict=False)
-    ip_puro = rede_principal.network_address
+    # Processamento de Dados de Infraestrutura
+    rede_mestra = ipaddress.ip_network(entrada_ip, strict=False)
     
-    # --- DIAGNÓSTICO PRINCIPAL ---
-    st.subheader("📊 Diagnóstico da Rede Principal")
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Rede", str(rede_principal.network_address))
-    with c2:
-        st.metric("Máscara Resolvida", str(rede_principal.netmask))
-    with c3:
-        st.metric("Classe Identificada", get_ip_class(ip_puro))
-    with c4:
-        st.metric("Prefixo Atual", f"/{rede_principal.prefixlen}")
+    st.subheader("📋 Especificações Técnicas da Rede Principal")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Endereço de Rede", str(rede_mestra.network_address))
+    m2.metric("Máscara Decimal", str(rede_mestra.netmask))
+    m3.metric("Segmentação", identificar_classe(rede_mestra.network_address))
+    m4.metric("Prefixo", f"/{rede_mestra.prefixlen}")
 
     st.divider()
 
-    # --- CÁLCULO E EXIBIÇÃO DAS SUB-REDES ---
-    bits_extras = math.ceil(math.log2(num_subnets))
-    novo_prefixo = rede_principal.prefixlen + bits_extras
+    # Lógica de Segmentação (VLSM)
+    bits_adicionais = math.ceil(math.log2(divisoes_solicitadas))
+    novo_prefixo = rede_mestra.prefixlen + bits_adicionais
 
     if novo_prefixo > 32:
-        st.error("❌ Erro: O número de sub-redes solicitado ultrapassa o limite de 32 bits do IPv4.")
+        st.error("Solicitação Inválida: O número de sub-redes excede a capacidade de bits do protocolo IPv4.")
     else:
-        subnets = list(rede_principal.subnets(new_prefix=novo_prefixo))
-        total_criado = len(subnets)
-        st.subheader(f"📂 Detalhamento das {total_criado} Sub-redes (/{novo_prefixo})")
+        lista_subredes = list(rede_mestra.subnets(new_prefix=novo_prefixo))
+        total_redes = len(lista_subredes)
         
-        # Paginação
-        limit = 10
-        total_paginas = math.ceil(total_criado / limit)
-        page = st.number_input("Página da lista:", min_value=1, max_value=total_paginas, value=1)
+        st.subheader(f"📂 Relatório de Segmentação: {total_redes} Sub-redes Geradas (/{novo_prefixo})")
         
-        start = (page - 1) * limit
-        end = start + limit
+        # Paginação para análise de dados
+        idx_pagina = st.number_input("Página de Relatório:", min_value=1, max_value=math.ceil(total_redes/10), value=1)
+        inicio, fim = (idx_pagina - 1) * 10, idx_pagina * 10
 
-        for i, sn in enumerate(subnets[start:end]):
-            # Expansor para cada sub-rede
-            with st.expander(f"🌐 Sub-rede {start + i + 1}: {sn.network_address}/{novo_prefixo}"):
-                col_a, col_b = st.columns(2)
+        for i, sn in enumerate(lista_subredes[inicio:fim]):
+            with st.expander(f"🌐 Detalhamento Técnico - Sub-rede {inicio + i + 1}: {sn.network_address}/{novo_prefixo}"):
+                col_dados, col_bin = st.columns(2)
                 
-                with col_a:
-                    st.write("**📍 Endereçamento**")
-                    st.write(f"- **IP de Rede:** `{sn.network_address}`")
-                    st.write(f"- **Primeiro Host:** `{sn.network_address + 1}`")
-                    st.write(f"- **Último Host:** `{sn.broadcast_address - 1}`")
-                    st.write(f"- **Broadcast:** `{sn.broadcast_address}`")
-                    st.success(f"**Máscara Resolvida: {sn.netmask}**")
-                    # NOVA INFORMAÇÃO SOLICITADA:
-                    st.info(f"🔢 **Sub-redes deste tamanho possíveis na rede: {total_criado}**")
+                with col_dados:
+                    st.markdown("**Parâmetros de Endereçamento**")
+                    tabela = {
+                        "Atributo": ["Network ID", "Gateway Sugerido", "Último Host Válido", "Broadcast Address", "Máscara"],
+                        "Valor": [str(sn.network_address), str(sn.network_address + 1), str(sn.broadcast_address - 1), str(sn.broadcast_address), str(sn.netmask)]
+                    }
+                    st.table(tabela)
+                    st.info(f"Capacidade: {sn.num_addresses - 2} hosts utilizáveis.")
                 
-                with col_b:
-                    st.write("**💻 Raio-X Binário Alinhado**")
-                    st.text("Binário do IP:")
-                    st.code(format_bin(sn.network_address))
-                    
-                    st.text("Binário da Máscara:")
-                    st.code(format_bin(sn.netmask))
-                    
-                    st.caption(f"Prefixo: /{sn.prefixlen} | Total de IPs úteis por sub-rede: {sn.num_addresses - 2}")
+                with col_bin:
+                    st.markdown("**Análise de Camada 3 (Binário)**")
+                    st.text("Estrutura do IP:")
+                    st.code(formatar_binario(sn.network_address))
+                    st.text("Máscara de Sub-rede:")
+                    st.code(formatar_binario(sn.netmask))
+                    st.caption(f"Capacidade Total do Bloco Principal: {total_redes} redes equivalentes.")
 
-        st.caption(f"Mostrando sub-redes {start+1} a {min(end, total_criado)} de um total de {total_criado}.")
-
-except Exception as e:
-    st.warning(f"Aguardando entrada válida (IP/Máscara). Exemplo: 10.0.0.0/8")
+except Exception as erro:
+    st.warning("Aguardando inserção de dados em formato CIDR válido.")
