@@ -4,27 +4,41 @@ import math
 
 st.set_page_config(page_title="Capacidade Total IPv4", page_icon="🧮", layout="wide")
 
+def identificar_classe_detalhada(ip):
+    """Retorna a classe do IP e uma breve explicação técnica."""
+    primeiro_octeto = int(str(ip).split('.')[0])
+    if 1 <= primeiro_octeto <= 126:
+        return "Classe A", "Redes de grande porte. O primeiro octeto define a rede."
+    elif 128 <= primeiro_octeto <= 191:
+        return "Classe B", "Redes de médio porte. Os dois primeiros octetos definem a rede."
+    elif 192 <= primeiro_octeto <= 223:
+        return "Classe C", "Redes de pequeno porte. Os três primeiros octetos definem a rede."
+    elif 224 <= primeiro_octeto <= 239:
+        return "Classe D", "Multicast (Uso especial)."
+    else:
+        return "Classe E", "Experimental/Reservada."
+
 def formatar_binario(valor):
     return ".".join([bin(int(x))[2:].zfill(8) for x in str(valor).split('.')])
 
 st.title("🧮 Calculadora de Capacidade Total de Redes")
-st.markdown(f"**Desenvolvido por:** Richard Santos | **Foco:** Análise de Escala e VLSM")
+st.markdown(f"**Desenvolvido por:** Richard Santos | **Status:** Alta Performance")
 st.divider()
 
-# Entrada de Dados
 col1, col2 = st.columns(2)
 with col1:
-    entrada_ip = st.text_input("Bloco CIDR Principal (Ex: 10.0.0.0/8):", "189.6.0.0/16")
+    entrada_ip = st.text_input("Bloco CIDR Principal (Ex: 10.0.0.0/8):", "9.6.0.0/16")
 with col2:
-    prefixo_alvo = st.number_input("Prefixo das Sub-redes (Ex: /24):", min_value=1, max_value=32, value=24)
+    prefixo_alvo = st.number_input("Novo Prefixo das Sub-redes (CIDR):", min_value=1, max_value=32, value=20)
 
 try:
     rede_pai = ipaddress.ip_network(entrada_ip, strict=False)
+    classe, desc = identificar_classe_detalhada(rede_pai.network_address)
     
     if prefixo_alvo < rede_pai.prefixlen:
         st.error(f"O prefixo alvo (/{prefixo_alvo}) deve ser maior que o original (/{rede_pai.prefixlen}).")
     else:
-        # --- CÁLCULOS DE CAPACIDADE TOTAL ---
+        # Cálculos de capacidade
         total_subredes = 2**(prefixo_alvo - rede_pai.prefixlen)
         ips_por_subrede = 2**(32 - prefixo_alvo)
         hosts_uteis = ips_por_subrede - 2 if ips_por_subrede > 2 else 0
@@ -32,25 +46,23 @@ try:
 
         # --- PAINEL DE MÉTRICAS GLOBAIS ---
         st.subheader("🌐 Relatório de Capacidade Global")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Sub-redes Possíveis", f"{total_subredes:,}")
-        m2.metric("Hosts Úteis por Rede", f"{hosts_uteis:,}")
-        m3.metric("Total de IPs no Bloco", f"{total_ips_global:,}")
-
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Classe do IP", classe)
+        m2.metric("Sub-redes Possíveis", f"{total_subredes:,}")
+        m3.metric("Hosts Úteis / Rede", f"{hosts_uteis:,}")
+        m4.metric("Total IPs no Bloco", f"{total_ips_global:,}")
+        
+        st.info(f"**Explicação da {classe}:** {desc}")
         st.divider()
 
-        # --- VISUALIZAÇÃO DE AMOSTRA E BUSCA ---
-        st.subheader(f"🔍 Explorador de Segmentação (1 de {total_subredes:,})")
+        # --- NAVEGAÇÃO DE ALTA PERFORMANCE ---
+        st.subheader(f"🔍 Explorador de Segmentação")
         
-        # Slider para navegar em QUALQUER rede, não importa se são milhares
-        n_rede = st.select_slider(
-            "Arraste para navegar entre as sub-redes ou use as setas:",
-            options=range(1, total_subredes + 1),
-            value=1
-        )
+        # Trocamos o slider por número para não travar em redes grandes
+        n_rede = st.number_input(f"Digite qual sub-rede deseja ver (1 até {total_subredes:,}):", 
+                                 min_value=1, max_value=total_subredes, value=1)
 
-        # Cálculo matemático direto da sub-rede N (sem carregar a lista inteira na RAM)
-        # Isso permite que o site calcule a rede 1.000.000 instantaneamente
+        # Cálculo matemático direto (Otimizado)
         salto = ips_por_subrede
         ip_da_rede = ipaddress.IPv4Address(int(rede_pai.network_address) + ((n_rede - 1) * salto))
         sub_atual = ipaddress.ip_network(f"{ip_da_rede}/{prefixo_alvo}")
@@ -72,4 +84,4 @@ try:
             st.code(formatar_binario(sub_atual.netmask))
 
 except Exception as e:
-    st.warning("Insira um bloco CIDR válido para iniciar a análise de capacidade.")
+    st.warning("Insira um bloco CIDR válido para iniciar (Ex: 10.0.0.0/8).")
